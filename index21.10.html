@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agendamento de Vistoria</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f5f5f5; margin: 0; padding: 20px; }
+    h1, h2 { text-align: center; }
+    form { background: #fff; padding: 20px; border-radius: 8px; max-width: 500px; margin: 0 auto 20px auto; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+    label { display: block; margin-top: 10px; font-weight: bold; }
+    input, select, button { width: 100%; padding: 10px; margin-top: 5px; font-size: 16px; }
+    button { background: #007bff; color: white; border: none; cursor: pointer; margin-top: 15px; }
+    button:hover { background: #0056b3; }
+    table { width: 100%; max-width: 700px; margin: 0 auto; border-collapse: collapse; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+    th, td { padding: 10px; border-bottom: 1px solid #ddd; text-align: left; }
+    th { background: #007bff; color: #fff; }
+  </style>
+</head>
+<body>
+  <h1>Agendamento de Vistoria</h1>
+
+  <form id="formAgendamento">
+    <label for="nome">Nome do Morador:</label>
+    <input type="text" id="nome" required>
+
+    <label for="imovel">Identificação do Imóvel:</label>
+    <input type="text" id="imovel" required>
+
+    <label for="data">Data da Vistoria:</label>
+    <select id="data" required>
+      <option value="2025-11-07">07/11/2025</option>
+      <option value="2025-11-08">08/11/2025</option>
+      <option value="2025-11-15">15/11/2025</option>
+      <option value="2025-11-16">16/11/2025</option>
+    </select>
+
+    <label for="horario">Horário:</label>
+    <select id="horario" required>
+      <option value="">-- Escolha o horário --</option>
+    </select>
+
+    <button type="submit">Agendar</button>
+  </form>
+
+  <h2>Agendamentos Confirmados</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Morador</th>
+        <th>Imóvel</th>
+        <th>Data</th>
+        <th>Hora</th>
+      </tr>
+    </thead>
+    <tbody id="tabelaAgendamentos"></tbody>
+  </table>
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.30.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.30.0/firebase-database-compat.js"></script>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyA5H1UdBAlJvTBQH9rZuB6G-YuHXFSkWtg",
+      authDomain: "horario-cbf9b.firebaseapp.com",
+      databaseURL: "https://horario-cbf9b-default-rtdb.firebaseio.com",
+      projectId: "horario-cbf9b",
+      storageBucket: "horario-cbf9b.firebasestorage.app",
+      messagingSenderId: "1077175588257",
+      appId: "1:1077175588257:web:9a325cd72cd36d4626a7e0",
+      measurementId: "G-NL32FKN2E1"
+    };
+
+    const app = firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    const horariosDisponiveis = ["08:00", "09:00", "10:00", "11:00", "13:00", "14:00", "15:00", "16:00"];
+    const selectHorario = document.getElementById('horario');
+    const selectData = document.getElementById('data');
+    const form = document.getElementById('formAgendamento');
+    const tabela = document.getElementById('tabelaAgendamentos');
+
+    function atualizarHorarios() {
+      selectHorario.innerHTML = '<option value="">-- Escolha o horário --</option>';
+      const dataSelecionada = selectData.value;
+
+      db.ref(`agendamentos/${dataSelecionada}`).once('value').then(snapshot => {
+        const agendamentos = snapshot.val() || {};
+        horariosDisponiveis.forEach(h => {
+          const option = document.createElement('option');
+          option.value = h;
+          option.textContent = h;
+          if (agendamentos[h] && agendamentos[h].nome) {
+            option.disabled = true;
+            option.textContent += " - RESERVADO";
+          }
+          selectHorario.appendChild(option);
+        });
+      });
+    }
+
+    function atualizarTabela() {
+      db.ref('agendamentos').on('value', snapshot => {
+        tabela.innerHTML = '';
+        snapshot.forEach(dataSnap => {
+          const data = dataSnap.key;
+          dataSnap.forEach(hSnap => {
+            const hora = hSnap.key;
+            const val = hSnap.val();
+            if (val && val.nome) {
+              const tr = document.createElement('tr');
+              tr.innerHTML = `<td>${val.nome}</td><td>${val.imovel}</td><td>${data}</td><td>${hora}</td>`;
+              tabela.appendChild(tr);
+            }
+          });
+        });
+      });
+    }
+
+    window.addEventListener('load', atualizarHorarios);
+    selectData.addEventListener('change', atualizarHorarios);
+    atualizarTabela();
+
+    form.addEventListener('submit', e => {
+      e.preventDefault();
+      const nome = document.getElementById('nome').value.trim();
+      const imovel = document.getElementById('imovel').value.trim();
+      const data = selectData.value;
+      const horario = selectHorario.value;
+
+      if (!nome || !imovel || !data || !horario) return alert("Preencha todos os campos.");
+
+      const ref = db.ref(`agendamentos/${data}/${horario}`);
+      ref.once('value').then(snap => {
+        if (snap.val() && snap.val().nome) return alert("Horário já reservado!");
+        ref.set({ nome, imovel }).then(() => {
+          alert("Agendamento realizado!");
+          form.reset();
+          atualizarHorarios();
+        });
+      });
+    });
+  </script>
+</body>
+</html>
